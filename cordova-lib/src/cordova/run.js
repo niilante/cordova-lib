@@ -29,6 +29,8 @@ module.exports = function run(options) {
     var projectRoot = cordova_util.cdProjectRoot();
     options = cordova_util.preProcessOptions(options);
 
+    options.stdio = options.stdio || 'inherit';
+
     var hooksRunner = new HooksRunner(projectRoot);
     return hooksRunner.fire('before_run', options)
     .then(function() {
@@ -38,7 +40,7 @@ module.exports = function run(options) {
         // Deploy in parallel (output gets intermixed though...)
         return Q.all(options.platforms.map(function(platform) {
             var cmd = path.join(projectRoot, 'platforms', platform, 'cordova', 'run');
-            return superspawn.spawn(cmd, options.options, { printCommand: true, stdio: 'inherit', chmod: true });
+            return superspawn.spawn(cmd, options.options, { printCommand: true, stdio: options.stdio, chmod: true });
         }));
     }).then(function() {
         return hooksRunner.fire('after_run', options);

@@ -74,6 +74,9 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
     var autosave =  config_json.auto_save_platforms || false;
     opts = opts || {};
     opts.searchpath = opts.searchpath || config_json.plugin_search_path;
+    //Add option for passing in pipe for interprocess communication
+    opts.stdio = opts.stdio || 'inherit';
+
 
     // The "platforms" dir is safe to delete, it's almost equivalent to
     // cordova platform rm <list of all platforms>
@@ -155,7 +158,7 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
                     }
                 }).then(function(args) {
                     var bin = path.join(platDetails.libDir, 'bin', cmd == 'add' ? 'create' : 'update');
-                    var copts = { stdio: 'inherit', chmod: true };
+                    var copts = { stdio: opts.stdio, chmod: true };
                     if ('spawnoutput' in opts) {
                         copts = { stdio: opts.spawnoutput };
                     }
@@ -167,10 +170,12 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
                     // Call prepare for the current platform.
                     var prepOpts = {
                         platforms :[platform],
-                        searchpath :opts.searchpath
+                        searchpath :opts.searchpath,
+                        stdio: opts.stdio
                     };
                     return require('./cordova').raw.prepare(prepOpts);
                 }).then(function() {
+
                     if (cmd == 'add') {
                         return installPluginsForNewPlatform(platform, projectRoot, opts);
                     }
@@ -196,10 +201,14 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
                         cfg.addEngine(platform, spec);
                         cfg.write();
                     }
-                });
+                })
+                .catch(function(ex) {
+                  return Q.reject(new CordovaError('There was an error adding the platform:' + ex));
+                })
             });
         });
     }).then(function() {
+      console.log('all done with platform add stuffs');
         return hooksRunner.fire('after_platform_' + cmd, opts);
     });
 }
@@ -634,7 +643,8 @@ function installPluginsForNewPlatform(platform, projectRoot, opts) {
             plugin = path.basename(plugin);
 
             var options = {
-                searchpath: opts.searchpath
+                searchpath: opts.searchpath,
+                stdio: opts.stdio
             };
 
             // Get plugin variables from fetch.json if have any and pass them as cli_variables to plugman

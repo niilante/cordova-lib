@@ -87,6 +87,8 @@ exports.spawn = function(cmd, args, opts) {
         spawnOpts.stdio = 'ignore';
     } else if (opts.stdio == 'inherit') {
         spawnOpts.stdio = 'inherit';
+    } else {
+      spawnOpts.stdio = opts.stdio || 'inherit';
     }
     if (opts.cwd) {
         spawnOpts.cwd = opts.cwd;

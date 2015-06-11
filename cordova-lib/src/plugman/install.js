@@ -71,6 +71,8 @@ module.exports = function installPlugin(platform, project_dir, id, plugins_dir, 
 
     options = options || {};
     options.is_top_level = true;
+    options.stdio = options.stdio || 'inherit';
+
     plugins_dir = plugins_dir || path.join(project_dir, 'cordova', 'plugins');
 
     if (!platform_modules[platform]) {
@@ -256,6 +258,8 @@ function runInstall(actions, platform, project_dir, plugin_dir, plugins_dir, opt
     options = options || {};
     options.graph = options.graph || new dep_graph();
     options.pluginInfoProvider = options.pluginInfoProvider || new PluginInfoProvider();
+    options.stdio = options.stdio || 'inherit';
+
 
     var pluginInfoProvider = options.pluginInfoProvider;
     var pluginInfo   = pluginInfoProvider.get(plugin_dir);
@@ -288,7 +292,7 @@ function runInstall(actions, platform, project_dir, plugin_dir, plugins_dir, opt
         if (options.platformVersion) {
             return Q(options.platformVersion);
         }
-        return Q(superspawn.maybeSpawn(path.join(project_dir, 'cordova', 'version'), [], { chmod: true }));
+        return Q(superspawn.maybeSpawn(path.join(project_dir, 'cordova', 'version'), [], { chmod: true, stdio: options.stdio }));
     }).then(function(platformVersion) {
         options.platformVersion = platformVersion;
         return callEngineScripts(theEngines);

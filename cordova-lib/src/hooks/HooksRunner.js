@@ -163,6 +163,8 @@ function runScriptViaChildProcessSpawn(script, context) {
     var command = script.fullPath;
     var args = [opts.projectRoot];
 
+    opts.stdio = opts.stdio || 'inherit';
+
     if (fs.statSync(script.fullPath).isDirectory()) {
         events.emit('verbose', 'skipped directory "' + script.fullPath + '" within hook directory');
         return Q();
@@ -178,7 +180,7 @@ function runScriptViaChildProcessSpawn(script, context) {
         }
     }
 
-    var execOpts = {cwd: opts.projectRoot, printCommand: true, stdio: 'inherit'};
+    var execOpts = {cwd: opts.projectRoot, printCommand: true, stdio: opts.stdio};
     execOpts.env = {};
     execOpts.env.CORDOVA_VERSION = require('../../package').version;
     execOpts.env.CORDOVA_PLATFORMS = opts.platforms ? opts.platforms.join() : '';
