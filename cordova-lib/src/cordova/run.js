@@ -46,5 +46,6 @@ module.exports = function run(options) {
         return hooksRunner.fire('after_run', options);
     }, function(error) {
         events.emit('log', 'ERROR running one or more of the platforms: ' + error + '\nYou may not have the required environment or OS to run this project');
+        throw error;
     });
 };
