@@ -208,7 +208,6 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
             });
         });
     }).then(function() {
-      console.log('all done with platform add stuffs');
         return hooksRunner.fire('after_platform_' + cmd, opts);
     });
 }
