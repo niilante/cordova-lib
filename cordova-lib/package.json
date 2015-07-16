@@ -5,11 +5,11 @@
   "version": "5.1.5",
   "repository": {
     "type": "git",
-    "url": "git://git-wip-us.apache.org/repos/asf/cordova-lib.git"
+    "url": "git@github.com:driftyco/cordova-lib.git"
   },
   "bugs": {
-    "url": "https://issues.apache.org/jira/browse/CB",
-    "email": "dev@cordova.apache.org"
+    "url": "https://github.com/driftyco/cordova-lib/issues",
+    "email": "josh@ionic.io"
   },
   "main": "cordova-lib.js",
   "engines": {
