@@ -112,13 +112,22 @@ function checkEngines(engines) {
     for(var i = 0; i < engines.length; i++) {
         var engine = engines[i];
 
+        // This is a hack to allow plugins with <engine> tag to be installed with
+        // engine with '-dev' suffix. It is required due to new semver range logic,
+        // introduced in semver@3.x. For more details see https://github.com/npm/node-semver#prerelease-tags.
+        //
+        // This may lead to false-positive checks, when engine version with dropped
+        // suffix is equal to one of range bounds, for example: 5.1.0-dev >= 5.1.0.
+        // However this shouldn't be a problem, because this only should happen in dev workflow.
+        engine.currentVersion = engine.currentVersion && engine.currentVersion.replace(/-dev$/, '');
         if ( semver.satisfies(engine.currentVersion, engine.minVersion) || engine.currentVersion === null ) {
             // engine ok!
         } else {
             var msg = 'Plugin doesn\'t support this project\'s ' + engine.name + ' version. ' +
                       engine.name + ': ' + engine.currentVersion +
                       ', failed version requirement: ' + engine.minVersion;
-            return Q.reject(new CordovaError(msg));
+            events.emit('warn', msg);
+            return Q.reject('skip');
         }
     }
 
@@ -299,16 +308,28 @@ function runInstall(actions, platform, project_dir, plugin_dir, plugins_dir, opt
     }).then(function(engines) {
         return checkEngines(engines);
     }).then(function() {
-            // checking preferences, if certain variables are not provided, we should throw.
             var prefs = pluginInfo.getPreferences(platform);
+            var keys = underscore.keys(prefs);
+
             options.cli_variables = options.cli_variables || {};
-            filtered_variables = underscore.pick(options.cli_variables, prefs);
-            var missing_vars = underscore.difference(prefs, Object.keys(options.cli_variables));
-            install.filtered_variables = filtered_variables;
+            var missing_vars = underscore.difference(keys, Object.keys(options.cli_variables));
+
+            underscore.each(missing_vars,function(_key) {
+                var def = prefs[_key];
+                if (def)
+                     // adding default variables
+                    options.cli_variables[_key]=def;
+            });
+
+            // test missing vars once again after having default
+            missing_vars = underscore.difference(keys, Object.keys(options.cli_variables));
 
             if (missing_vars.length > 0) {
                 throw new Error('Variable(s) missing: ' + missing_vars.join(', '));
             }
+
+            filtered_variables = underscore.pick(options.cli_variables, keys);
+            install.filtered_variables = filtered_variables;
 
             // Check for dependencies
             var dependencies = pluginInfo.getDependencies(platform);
@@ -353,8 +374,13 @@ function runInstall(actions, platform, project_dir, plugin_dir, plugins_dir, opt
         }
     ).fail(
         function (error) {
-            events.emit('warn', 'Failed to install \'' + pluginInfo.id + '\':' + error.stack);
-            throw error;
+            
+            if(error === 'skip') {
+                events.emit('warn', 'Skipping \'' + pluginInfo.id + '\' for ' + platform);
+            } else {
+                events.emit('warn', 'Failed to install \'' + pluginInfo.id + '\':' + error.stack);
+                throw error;
+            }
         }
     );
 }
@@ -563,7 +589,7 @@ function handleInstall(actions, pluginInfo, platform, project_dir, plugins_dir, 
         } else {
             return plugman.prepare(project_dir, platform, plugins_dir, options.www_dir, options.is_top_level, options.pluginInfoProvider);
         }
-	}).then (function() {
+    }).then (function() {
         events.emit('verbose', 'Install complete for ' + pluginInfo.id + ' on ' + platform + '.');
 
         if (platform == 'android' && semver.gte(options.platformVersion, '4.0.0-dev') && frameworkFiles.length > 0) {

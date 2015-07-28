@@ -24,7 +24,6 @@ var semver = require('semver'),
     path = require('path'),
     url = require('url'),
     fs = require('fs'),
-    manifest = require('./manifest'),
     rc = require('rc'),
     Q = require('q'),
     request = require('request'),
@@ -37,14 +36,6 @@ var semver = require('semver'),
     plugmanConfigDir = process.env.PLUGMAN_HOME || path.resolve(home, '.plugman'),
     plugmanCacheDir = path.resolve(plugmanConfigDir, 'cache'),
     oneDay = 3600*24;
-
-if (semver.compare(npm.version, '1.3.4') > 0) {
-    throw new Error('Unsupported npm version (' + npm.version + '). ' +
-       'Please downgrade to 1.3.4:\n' +
-       '\t(cd ' + path.dirname(path.dirname(path.dirname(__dirname))) +
-       ' && rm -rf ' + path.join('node_modules', 'npm') +
-       ' && npm install npm@1.3.4)');
-}
 
 module.exports = {
     settings: null,
@@ -65,60 +56,13 @@ module.exports = {
      * @return {Promise.<void>} Promise for completion.
      */
     owner: function(args) {
+        var command = args && args[0];
+        if (command && (command === 'add' || command === 'rm'))
+            return Q.reject('Support for \'owner add/rm\' commands has been removed ' +
+                'due to transition of Cordova plugins registry to read-only state');
+
         return initThenLoadSettingsWithRestore(function () {
             return Q.ninvoke(npm.commands, 'owner', args);
-        });
-    },
-    /**
-     * @method adduser
-     * @param {Array} args Command argument
-     * @return {Promise.<void>} Promise for completion.
-     */
-    adduser: function(args) {
-        return initThenLoadSettingsWithRestore(function () {
-            return Q.ninvoke(npm.commands, 'adduser', args);
-        });
-    },
-
-    /**
-     * @method publish
-     * @param {Array} args Command argument
-     * @return {Promise.<Object>} Promised published data.
-     */
-    publish: function(args) {
-        var dir = args[0] || '.';
-        return initSettings()
-        .then(function(settings) {
-            if(fs.existsSync(path.join(dir,'package.json'))) {
-                events.emit('verbose', 'temporarily moving existing package.json so we can create one to publish to the cordova plugins registry');
-                if(fs.existsSync(path.join(dir,'package.json1'))) {
-                    //package.json1 already exists, maybe due to a failed past attempt to publish
-                    //we will assume that the rename has already happened.
-                    events.emit('verbose', 'package.json1 already exists. Will use');
-                } else {
-                    //rename package.json to pacakge.json1 temporarily
-                    fs.renameSync(path.join(dir,'package.json'),path.join(dir,'package.json1'));
-                }
-            }
-            return manifest.generatePackageJsonFromPluginXml(dir)
-            .then(function () {
-                return npmhelper.loadWithSettingsThenRestore(settings, function () {
-                    // With  no --force we'll get a 409 (conflict) when trying to
-                    // overwrite an existing package@version.
-                    //npm.config.set('force', true);
-                    events.emit('log', 'attempting to publish plugin to registry');
-                    return Q.ninvoke(npm.commands, 'publish', args);
-                });
-            }).then(function() {
-                fs.unlink(path.resolve(dir, 'package.json'));
-                //rename package.json1 to package.json if it exists
-                if(fs.existsSync(path.join(dir,'package.json1'))) {
-                    events.emit('verbose', 'restoring original package.json');
-                    fs.renameSync(path.join(dir,'package.json1'),path.join(dir,'package.json'));
-                }
-            }).catch(function(err){
-                return err;
-            });
         });
     },
 
@@ -134,29 +78,6 @@ module.exports = {
     },
 
     /**
-     * @method unpublish
-     * @param {Array} args Command argument
-     * @return {Promise.<Object>} Promised results.
-     */
-    unpublish: function (args) {
-        return initThenLoadSettingsWithRestore(function () {
-            // --force is required to delete an entire plugin with all versions.
-            // Without --force npm can only unpublish a specific version.
-            //npm.config.set('force', true);
-            // Note, npm.unpublish does not report back errors (at least some)
-            // e.g.: `unpublish non.existent.plugin`
-            // will complete with no errors.
-            events.emit('log', 'attempting to unpublish plugin from registry');
-            return Q.ninvoke(npm.commands, 'unpublish', args)
-            .then(function () {
-                // npm.unpublish removes the cache for the unpublished package
-                // cleaning the entire cache might not be necessary.
-                return Q.ninvoke(npm.commands, 'cache', ['clean']);
-            });
-        });
-    },
-
-    /**
      * @method fetch
      * @param {Array} with one element - the plugin id or "id@version"
      * @return {Promise.<string>} Promised path to fetched package.
@@ -164,20 +85,17 @@ module.exports = {
     fetch: function(plugin, client) {
         plugin = plugin.shift();
         return Q.fcall(function() {
-            //check to see if pluginID is reverse domain name style
-            if(isValidCprName(plugin)){
-                return Q();
-            } else {
-                //make promise fail so it will fetch from npm
-                events.emit('verbose', 'Skipping CPR');
-                return Q.reject();
-            }
-        })
-        .then(function() {
-            return fetchPlugin(plugin, client, false);
-        })
-        .fail(function() {
+            //fetch from npm
             return fetchPlugin(plugin, client, true);
+        })
+        .fail(function(error) {
+            //check to see if pluginID is reverse domain name style
+            if(isValidCprName(plugin)) {
+                //fetch from CPR
+                return fetchPlugin(plugin, client, false);
+            } else {
+                return Q.reject(error);
+            }
         });
     },
 
@@ -349,7 +267,7 @@ function fetchPlugin(plugin, client, useNpmRegistry) {
 
     return initThenLoadSettingsWithRestore(useNpmRegistry, function () {
         events.emit('log', 'Fetching plugin "' + plugin + '" via ' + registryName);
-        return Q.ninvoke(npm.commands, 'cache', ['add', plugin])
+        return Q.ninvoke(npm.commands, 'cache', ['add', processPluginVersion(plugin)])
         .then(function (info) {
             var cl = (client === 'plugman' ? 'plugman' : 'cordova-cli');
             bumpCounter(info, cl);
@@ -359,6 +277,26 @@ function fetchPlugin(plugin, client, useNpmRegistry) {
             return unpack.unpackTgz(package_tgz, pluginDir);
         });
     });
+}
+
+function processPluginVersion(plugin) {
+    // If plugin includes a version that is a caret range, the ancient version of npm we're using won't know how to
+    // handle it. So we'll use our current version of semver to turn it into a usable range.
+
+    var parts = plugin.split('@');
+    var version = parts[1];
+
+    if (!version || version.charAt(0) !== '^') {
+        return plugin;
+    }
+
+    var validRange = semver.validRange(version, /* loose */ true);
+    if (!validRange) {
+        return plugin;
+    }
+
+    // Because validRange may include spaces, we need to wrap it in quotes.
+    return parts[0] + '@"' + validRange + '"';
 }
 
 /**

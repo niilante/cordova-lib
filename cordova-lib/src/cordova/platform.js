@@ -68,6 +68,13 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
         }
     }
 
+    if (opts.usegit) {
+        msg = '\nWARNING: The --usegit flag has been deprecated! \n' +
+              'Instead, please use: `cordova platform add git-url#custom-branch`. \n' +
+              'e.g: cordova platform add https://github.com/apache/cordova-android.git#2.4.0 \n';
+        events.emit('warn', msg);
+    }
+
     var xml = cordova_util.projectConfig(projectRoot);
     var cfg = new ConfigParser(xml);
     var config_json = config.read(projectRoot);
@@ -164,8 +171,14 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
                     }
                     return superspawn.spawn(bin, args, copts);
                 }).then(function() {
+                    var platform_www = path.join(projectRoot, 'platforms', platform, 'platform_www');
+
                     copy_cordova_js(projectRoot, platform);
-                    copy_cordovajs_src(projectRoot, platform, platDetails.libDir);
+
+                    // only want to copy cordova-js-src once, when the platform is added
+                    if (!fs.existsSync(path.join(platform_www, 'cordova-js-src'))) {
+                        copy_cordovajs_src(projectRoot, platform, platDetails.libDir);
+                    }
                 }).then(function () {
                     // Call prepare for the current platform.
                     var prepOpts = {
@@ -191,8 +204,8 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
 
                     if(opts.save || autosave){
                         // Similarly here, we save the source location if that was specified, otherwise the version that
-                        // was installed. However, we save it with the "^" attribute.
-                        spec = saveVersion ? '^' + platDetails.version : spec;
+                        // was installed. However, we save it with the "~" attribute (this allows for patch updates).
+                        spec = saveVersion ? '~' + platDetails.version : spec;
 
                         // Save target into config.xml, overriding already existing settings
                         events.emit('log', '--save flag or autosave detected');
@@ -224,10 +237,16 @@ function save(hooksRunner, projectRoot, opts) {
     // Save installed platforms into config.xml
     return platformMetadata.getPlatformVersions(projectRoot).then(function(platformVersions){
         platformVersions.forEach(function(platVer){
-            cfg.addEngine(platVer.platform, platVer.version);
+            cfg.addEngine(platVer.platform, getSpecString(platVer.version));
         });
         cfg.write();
     });
+}
+
+function getSpecString(spec) {
+    var validVersion = semver.valid(spec, true);
+    return validVersion ? '~' + validVersion : spec;
+
 }
 
 // Downloads via npm or via git clone (tries both)

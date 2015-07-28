@@ -29,6 +29,7 @@ TODO (kamrik): refactor this to not use sync functions and return promises.
 
 
 var path = require('path')
+  , fs = require('fs')
   , xml_helpers = require('./util/xml-helpers')
   , CordovaError = require('./CordovaError')
   ;
@@ -44,13 +45,22 @@ function PluginInfo(dirname) {
     // Used to require a variable to be specified via --variable when installing the plugin.
     self.getPreferences = getPreferences;
     function getPreferences(platform) {
-        var prefs = _getTags(self._et, 'preference', platform, _parsePreference);
+        var arprefs = _getTags(self._et, 'preference', platform, _parsePreference);
+
+        var prefs= {};
+        for(var i in arprefs)
+        {
+            var pref=arprefs[i];
+            prefs[pref.preference]=pref.default;
+        }
+        // returns { key : default | null}
         return prefs;
     }
 
     function _parsePreference(prefTag) {
-        var pref = prefTag.attrib.name.toUpperCase();
-        return pref;
+        var name = prefTag.attrib.name.toUpperCase();
+        var def = prefTag.attrib.default || null;
+        return {preference: name, default: def};
     }
 
     // <asset>
@@ -315,6 +325,9 @@ function PluginInfo(dirname) {
 
     ///// PluginInfo Constructor logic  /////
     self.filepath = path.join(dirname, 'plugin.xml');
+    if (!fs.existsSync(self.filepath)) {
+        throw new CordovaError('Cannot find plugin.xml for plugin \'' + path.basename(dirname) + '\'. Please try adding it again.');
+    }
 
     self.dir = dirname;
     var et = self._et = xml_helpers.parseElementtreeSync(self.filepath);

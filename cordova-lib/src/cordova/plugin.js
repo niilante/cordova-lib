@@ -147,7 +147,7 @@ module.exports = function plugin(command, targets, opts) {
                             attributes.name = pluginInfo.id;
 
                             var src = parseSource(target, opts);
-                            attributes.spec = src ? src : '^' + pluginInfo.version;
+                            attributes.spec = src ? src : '~' + pluginInfo.version;
 
                             var variables = [];
                             if (opts.cli_variables) {
@@ -166,10 +166,22 @@ module.exports = function plugin(command, targets, opts) {
                     })
                     .then(function(dir) {
                         // Validate top-level required variables
-                        var pluginVariables = pluginInfoProvider.get(dir).getPreferences(),
-                            missingVariables = pluginVariables.filter(function (v) {
-                                return !(v in opts.cli_variables);
-                            });
+                        var pluginVariables = pluginInfoProvider.get(dir).getPreferences();
+                        var requiredVariables = [];
+
+                        for(var i in pluginVariables) {
+                            var v = pluginVariables[i];
+                            // discard variables with default value
+                            if (!v) {
+                                requiredVariables.push(i);
+                            }
+                        }
+
+                        opts.cli_variables = opts.cli_variables || {}; 
+                        var missingVariables = requiredVariables.filter(function (v) {
+                            return !(v in opts.cli_variables);
+                        });
+
                         if (missingVariables.length) {
                             shell.rm('-rf', dir);
                             var msg = 'Variable(s) missing (use: --variable ' + missingVariables.join('=value --variable ') + '=value).';
@@ -361,6 +373,14 @@ function getPluginVariables(variables){
 
 function getVersionFromConfigFile(plugin, cfg){
     var pluginEntry = cfg.getPlugin(plugin);
+    if (!pluginEntry) {
+        // If the provided plugin id is in the new format (e.g. cordova-plugin-camera), it might be stored in config.xml
+        // under the old format (e.g. org.apache.cordova.camera), so check for that.
+        var oldStylePluginId = pluginMapper[plugin];
+        if (oldStylePluginId) {
+            pluginEntry = cfg.getPlugin(oldStylePluginId);
+        }
+    }
     return pluginEntry && pluginEntry.spec;
 }
 
@@ -474,7 +494,7 @@ function getSpec(pluginSource, projectRoot, pluginName) {
 function versionString(version) {
     var validVersion = semver.valid(version, true);
     if (validVersion) {
-        return '^' + validVersion;
+        return '~' + validVersion;
     }
 
     if (semver.validRange(version, true)) {

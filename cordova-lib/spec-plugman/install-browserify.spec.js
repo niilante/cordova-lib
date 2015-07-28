@@ -46,6 +46,7 @@ var install = require('../src/plugman/install'),
         'com.cordova.engine-android' : path.join(plugins_dir, 'com.cordova.engine-android'),
         'org.test.plugins.childbrowser' : path.join(plugins_dir, 'org.test.plugins.childbrowser'),
         'com.adobe.vars' : path.join(plugins_dir, 'com.adobe.vars'),
+        'org.test.defaultvariables' : path.join(plugins_dir, 'org.test.defaultvariables'),
         'A' : path.join(plugins_dir, 'dependencies', 'A'),
         'B' : path.join(plugins_dir, 'dependencies', 'B'),
         'C' : path.join(plugins_dir, 'dependencies', 'C'),
@@ -143,7 +144,7 @@ describe('start', function() {
             }
         ).fail(
             function(error) {
-                expect(error).toBeUndefined();
+                expect(error).toEqual({});
             }
         );
         waitsFor(function() { return done; }, 'promise never resolved', 2000);
@@ -295,6 +296,7 @@ describe('install', function() {
                 // <engine name="mega-boring-plugin" version=">=3.0.0" scriptSrc="megaBoringVersion" platform="ios|android" />
 
                 var plugmanVersion = require('../package.json').version;
+                plugmanVersion = plugmanVersion.replace(/-dev$/, '');
 
                 expect(spy.calls.length).toBe(4);
                 expect(spy.calls[0].args).toEqual([ null, '>=2.3.0' ]);
@@ -458,6 +460,15 @@ describe('install', function() {
                 expect(''+done).toContain('Variable(s) missing: API_KEY');
             });
         });
+         it('should not throw exception on default variables', function() {
+            runs(function() {
+                installPromise( install('android', project, plugins['org.test.defaultvariables'], plugins_install_dir, { browserify: true , cli_variables:{API_KEY:'del7a' }}) );
+            });
+            waitsFor(function() { return done; }, 'install promise never resolved', 200);
+            runs(function() {
+                expect(''+done).toEqual('true');
+            });
+        });
         it('should throw if git is not found on the path and a remote url is requested', function() {
             spyOn(fs, 'existsSync').andCallFake( fake['existsSync']['noPlugins'] );
             fetchSpy.andCallThrough();
@@ -470,7 +481,7 @@ describe('install', function() {
                 expect(''+done).toContain('"git" command line tool is not installed: make sure it is accessible on your PATH.');
             });
         });
-        it('should throw if plugin version is less than the minimum requirement', function(){
+        it('should not fail if plugin version is less than the minimum requirement. Instead skip.', function(){
             spyOn(semver, 'satisfies').andReturn(false);
             exec.andCallFake(function(cmd, cb) {
                 cb(null, '0.0.1\n');
@@ -480,7 +491,7 @@ describe('install', function() {
             });
             waitsFor(function(){ return done; }, 'install promise never resolved', 200);
             runs(function() {
-                expect(''+done).toContain('Plugin doesn\'t support this project\'s cordova version. cordova: 0.0.1, failed version requirement: >=2.3.0');
+                expect(''+done).toMatch(true);
             });
         });
     });
