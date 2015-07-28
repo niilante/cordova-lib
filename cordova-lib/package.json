@@ -2,7 +2,7 @@
   "author": "Apache Software Foundation",
   "name": "ionic-cordova-lib",
   "description": "Apache Cordova tools core lib and API",
-  "version": "5.1.5",
+  "version": "5.1.7",
   "repository": {
     "type": "git",
     "url": "git@github.com:driftyco/cordova-lib.git"
