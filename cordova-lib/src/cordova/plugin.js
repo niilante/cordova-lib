@@ -185,7 +185,8 @@ module.exports = function plugin(command, targets, opts) {
                                         searchpath: searchPath,
                                         noregistry: opts.noregistry,
                                         link: opts.link,
-                                        pluginInfoProvider: pluginInfoProvider
+                                        pluginInfoProvider: pluginInfoProvider,
+                                        stdio: opts.stdio || 'pipe'
                                     },
                                     tokens,
                                     key,
@@ -238,7 +239,7 @@ module.exports = function plugin(command, targets, opts) {
                         return soFar.then(function() {
                             var platformRoot = path.join(projectRoot, 'platforms', platform);
                              events.emit('verbose', 'Calling plugman.uninstall on plugin "' + target + '" for platform "' + platform + '"');
-                            return plugman.raw.uninstall.uninstallPlatform(platform, platformRoot, target, pluginPath);
+                            return plugman.raw.uninstall.uninstallPlatform(platform, platformRoot, target, pluginPath, opts);
                         });
                     }, Q())
                     .then(function() {
