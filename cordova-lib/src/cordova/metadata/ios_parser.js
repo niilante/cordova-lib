@@ -22,7 +22,7 @@
 var fs            = require('fs'),
     unorm         = require('unorm'),
     path          = require('path'),
-    xcode         = require('xcode'),
+    xcode         = require('ionic-xcode'),
     util          = require('../util'),
     events        = require('../../events'),
     shell         = require('shelljs'),
@@ -207,7 +207,7 @@ ios_parser.prototype.update_from_config = function(config) {
                 events.emit('verbose', 'Wrote out iOS Product Name and updated XCode project file names from "'+old_name+'" to "' + name + '".');
                 d.resolve();
             }
-        });
+        }, {stdio: 'pipe'});
         return d.promise;
     });
 };
@@ -294,7 +294,7 @@ ios_parser.prototype.update_build_settings = function(config) {
         }
         fs.writeFileSync(me.pbxproj, proj.writeSync(), 'utf-8');
         d.resolve();
-    });
+    }, {stdio: 'pipe'});
     return d.promise;
 };
 
