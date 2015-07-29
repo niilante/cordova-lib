@@ -217,7 +217,7 @@ function addHelper(cmd, hooksRunner, projectRoot, targets, opts) {
                 })
                 .catch(function(ex) {
                   return Q.reject(new CordovaError('There was an error adding the platform:' + ex));
-                })
+                });
             });
         });
     }).then(function() {
