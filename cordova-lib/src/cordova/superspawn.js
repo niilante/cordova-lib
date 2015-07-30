@@ -130,7 +130,14 @@ exports.spawn = function(cmd, args, opts) {
         child.removeListener('error', whenDone);
         var code = typeof arg == 'number' ? arg : arg && arg.code;
 
+        // Need to emit the output from superspawn if stdio is set to pipe.
+        if (opts.stdio == 'pipe') {
+          var outputMessage = capturedErr ? capturedErr : capturedOut;
+          events.emit('verbose', outputMessage);
+        }
+
         events.emit('verbose', 'Command finished with error code ' + code + ': ' + cmd + ' ' + args);
+
         if (code === 0) {
             d.resolve(capturedOut.trim());
         } else {
